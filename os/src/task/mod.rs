@@ -14,9 +14,11 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
-use crate::loader::{get_app_data, get_num_app};
+use crate::loader::get_app_data;
 use crate::sync::UPSafeCell;
+use crate::timer::get_time_ms;
 use crate::trap::TrapContext;
+use crate::{config::MAX_SYSCALL_NUM, loader::get_num_app};
 use alloc::vec::Vec;
 use lazy_static::*;
 use switch::__switch;
@@ -140,6 +142,13 @@ impl TaskManager {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
+
+            // update initial scheduling time
+            let time = &mut inner.tasks[next].init_sched_time;
+            if *time == 0 {
+                *time = get_time_ms();
+            }
+
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
@@ -201,4 +210,21 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+
+/// Update the current task's syscall times bucket
+pub fn add_syscall_times(syscall_id: usize) {
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    inner.tasks[current].syscall_times[syscall_id] += 1;
+}
+
+/// Get the current task's info
+pub fn get_current_task_info() -> (usize, [u32; MAX_SYSCALL_NUM]) {
+    let inner = TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    (
+        inner.tasks[current].init_sched_time,
+        inner.tasks[current].syscall_times.clone(),
+    )
 }
