@@ -106,6 +106,16 @@ impl TaskControlBlock {
             None
         }
     }
+
+    /// Map a new area.
+    pub fn mmap(&mut self, start: usize, len: usize, port: usize) -> Result<(), ()> {
+        self.memory_set.mmap(start, len, port)
+    }
+
+    /// Unmap a area.
+    pub fn munmap(&mut self, start: usize, len: usize) -> Result<(), ()> {
+        self.memory_set.munmap(start, len)
+    }
 }
 
 #[derive(Copy, Clone, PartialEq)]

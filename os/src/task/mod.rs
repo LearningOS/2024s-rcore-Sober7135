@@ -162,6 +162,20 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+    /// Map a new area for the current 'Running' task's program
+    pub fn mmap(&self, start: usize, len: usize, port: usize) -> Result<(), ()> {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].mmap(start, len, port)
+    }
+
+    /// Unmap a area for the current 'Running' task's program
+    pub fn munmap(&self, start: usize, len: usize) -> Result<(), ()> {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].munmap(start, len)
+    }
 }
 
 /// Run the first task in task list.
@@ -227,4 +241,14 @@ pub fn get_current_task_info() -> (usize, [u32; MAX_SYSCALL_NUM]) {
         inner.tasks[current].init_sched_time,
         inner.tasks[current].syscall_times.clone(),
     )
+}
+
+/// Map a new area for the current 'Running' task's program
+pub fn mmap(start: usize, len: usize, port: usize) -> Result<(), ()> {
+    TASK_MANAGER.mmap(start, len, port)
+}
+
+/// Unmap a area for the current 'Running' task's program
+pub fn munmap(start: usize, len: usize) -> Result<(), ()> {
+    TASK_MANAGER.munmap(start, len)
 }
