@@ -21,7 +21,7 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
-use crate::loader::get_app_data_by_name;
+use crate::{config::MAX_SYSCALL_NUM, loader::get_app_data_by_name};
 use alloc::sync::Arc;
 use lazy_static::*;
 pub use manager::{fetch_task, TaskManager};
@@ -114,4 +114,34 @@ lazy_static! {
 ///Add init process to the manager
 pub fn add_initproc() {
     add_task(INITPROC.clone());
+}
+
+/// Update the current task's syscall times bucket
+pub fn add_syscall_times(syscall_id: usize) {
+    let cur = current_task().unwrap();
+    let mut cur = cur.inner_exclusive_access();
+    cur.syscall_times[syscall_id] += 1;
+}
+
+/// Get the current task's info
+pub fn get_current_task_info() -> (usize, [u32; MAX_SYSCALL_NUM]) {
+    let cur = current_task().unwrap();
+    let cur = cur.inner_exclusive_access();
+    (cur.init_sched_time, cur.syscall_times)
+}
+
+/// Map a new area for the current 'Running' task's program
+pub fn mmap(start: usize, len: usize, port: usize) -> Result<(), ()> {
+    let cur = current_task().unwrap();
+    let mut cur = cur.inner_exclusive_access();
+
+    cur.mmap(start, len, port)
+}
+
+/// Unmap a area for the current 'Running' task's program
+pub fn munmap(start: usize, len: usize) -> Result<(), ()> {
+    let cur = current_task().unwrap();
+    let mut cur = cur.inner_exclusive_access();
+
+    cur.munmap(start, len)
 }

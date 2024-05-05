@@ -1,7 +1,7 @@
 //! Types related to task management & Functions for completely changing TCB
 use super::TaskContext;
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
-use crate::config::TRAP_CONTEXT_BASE;
+use crate::config::{MAX_SYSCALL_NUM, TRAP_CONTEXT_BASE};
 use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
 use crate::trap::{trap_handler, TrapContext};
@@ -68,6 +68,12 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
+
+    /// The task syscall times
+    pub syscall_times: [u32; MAX_SYSCALL_NUM],
+
+    /// The task initial scheduling time
+    pub init_sched_time: usize,
 }
 
 impl TaskControlBlockInner {
@@ -84,6 +90,15 @@ impl TaskControlBlockInner {
     }
     pub fn is_zombie(&self) -> bool {
         self.get_status() == TaskStatus::Zombie
+    }
+    /// Map a new area.
+    pub fn mmap(&mut self, start: usize, len: usize, port: usize) -> Result<(), ()> {
+        self.memory_set.mmap(start, len, port)
+    }
+
+    /// Unmap a area.
+    pub fn munmap(&mut self, start: usize, len: usize) -> Result<(), ()> {
+        self.memory_set.munmap(start, len)
     }
 }
 
@@ -118,6 +133,8 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: user_sp,
                     program_brk: user_sp,
+                    init_sched_time: 0,
+                    syscall_times: [0; MAX_SYSCALL_NUM],
                 })
             },
         };
@@ -191,6 +208,8 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
+                    init_sched_time: 0,
+                    syscall_times: [0; MAX_SYSCALL_NUM],
                 })
             },
         });
