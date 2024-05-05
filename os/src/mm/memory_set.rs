@@ -276,13 +276,18 @@ impl MemorySet {
         let start_va = VirtAddr::from(start);
         let end_va = VirtAddr::from(start + len);
         // check
-        if let Some(_) = self.areas.iter().find(|area| {
-            let range = &area.vpn_range;
-            let range_start = range.get_start();
-            let range_end = range.get_end();
-            (start_va.floor() >= range_start && start_va.floor() < range_end)
-                || (end_va.ceil() > range_start && end_va.floor() < range_end)
-        }) {
+        if self
+            .areas
+            .iter()
+            .find(|area| {
+                let range = &area.vpn_range;
+                let range_start = range.get_start();
+                let range_end = range.get_end();
+                (start_va.floor() >= range_start && start_va.floor() < range_end)
+                    || (end_va.ceil() > range_start && end_va.floor() < range_end)
+            })
+            .is_some()
+        {
             return Err(());
         }
 

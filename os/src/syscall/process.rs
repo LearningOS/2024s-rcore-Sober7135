@@ -108,7 +108,7 @@ pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
 // YOUR JOB: Implement mmap.
 pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    if let Ok(_) = mmap(start, len, port) {
+    if mmap(start, len, port).is_ok() {
         0
     } else {
         -1
@@ -119,7 +119,7 @@ pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
 pub fn sys_munmap(start: usize, len: usize) -> isize {
     trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
 
-    if let Ok(_) = munmap(start, len) {
+    if munmap(start, len).is_ok() {
         0
     } else {
         -1

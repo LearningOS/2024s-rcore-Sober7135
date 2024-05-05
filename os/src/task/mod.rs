@@ -239,7 +239,7 @@ pub fn get_current_task_info() -> (usize, [u32; MAX_SYSCALL_NUM]) {
     let current = inner.current_task;
     (
         inner.tasks[current].init_sched_time,
-        inner.tasks[current].syscall_times.clone(),
+        inner.tasks[current].syscall_times,
     )
 }
 
