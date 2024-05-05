@@ -1,7 +1,7 @@
 //! Types related to task management & Functions for completely changing TCB
 use super::TaskContext;
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
-use crate::config::TRAP_CONTEXT_BASE;
+use crate::config::{INIT_PRIO, MAX_SYSCALL_NUM, TRAP_CONTEXT_BASE};
 use crate::fs::{File, Stdin, Stdout};
 use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
@@ -71,6 +71,18 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
+
+    /// The task syscall times
+    pub syscall_times: [u32; MAX_SYSCALL_NUM],
+
+    /// The task initial scheduling time
+    pub init_sched_time: usize,
+
+    /// The task priority
+    pub prio: usize,
+
+    /// The task stride
+    pub stride: usize,
 }
 
 impl TaskControlBlockInner {
@@ -93,6 +105,15 @@ impl TaskControlBlockInner {
             self.fd_table.push(None);
             self.fd_table.len() - 1
         }
+    }
+    /// Map a new area.
+    pub fn mmap(&mut self, start: usize, len: usize, port: usize) -> Result<(), ()> {
+        self.memory_set.mmap(start, len, port)
+    }
+
+    /// Unmap a area.
+    pub fn munmap(&mut self, start: usize, len: usize) -> Result<(), ()> {
+        self.memory_set.munmap(start, len)
     }
 }
 
@@ -135,6 +156,10 @@ impl TaskControlBlock {
                     ],
                     heap_bottom: user_sp,
                     program_brk: user_sp,
+                    init_sched_time: 0,
+                    syscall_times: [0; MAX_SYSCALL_NUM],
+                    prio: INIT_PRIO,
+                    stride: 0,
                 })
             },
         };
@@ -216,6 +241,10 @@ impl TaskControlBlock {
                     fd_table: new_fd_table,
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
+                    init_sched_time: 0,
+                    syscall_times: [0; MAX_SYSCALL_NUM],
+                    prio: INIT_PRIO,
+                    stride: 0,
                 })
             },
         });
@@ -260,6 +289,45 @@ impl TaskControlBlock {
         } else {
             None
         }
+    }
+
+    /// Spawn.
+    pub fn spawn(self: &Arc<Self>, elf_data: &[u8]) -> Arc<Self> {
+        // ---- access parent PCB exclusively
+        let mut parent_inner = self.inner_exclusive_access();
+
+        let task = Arc::new(Self::new(elf_data));
+        parent_inner.children.push(task.clone());
+
+        task
+    }
+}
+
+impl PartialEq for TaskControlBlock {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner_exclusive_access().stride == other.inner_exclusive_access().stride
+    }
+}
+
+impl Eq for TaskControlBlock {}
+
+impl PartialOrd for TaskControlBlock {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(
+            other
+                .inner_exclusive_access()
+                .stride
+                .cmp(&self.inner_exclusive_access().stride),
+        )
+    }
+}
+
+impl Ord for TaskControlBlock {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        other
+            .inner_exclusive_access()
+            .stride
+            .cmp(&self.inner_exclusive_access().stride)
     }
 }
 
