@@ -49,6 +49,106 @@ pub struct ProcessControlBlockInner {
     pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
     /// condvar list
     pub condvar_list: Vec<Option<Arc<Condvar>>>,
+    /// enable or not
+    pub dead_checker: bool,
+    /// sem checker
+    pub semaphore_checker: DeadlockChecker,
+    /// mutex checker
+    pub mutex_checker: DeadlockChecker,
+}
+
+/// Checker
+#[derive(Debug, Clone)]
+pub struct DeadlockChecker {
+    /// Available. m
+    pub available: Vec<u32>,
+    /// Allocation. n * m
+    pub allocation: Vec<Vec<u32>>,
+    /// Need. n * m
+    pub need: Vec<Vec<u32>>,
+}
+
+impl DeadlockChecker {
+    /// new.
+    pub fn new() -> Self {
+        Self {
+            available: Vec::new(),
+            allocation: vec![vec![]],
+            need: vec![vec![]],
+        }
+    }
+
+    /// add thread
+    pub fn add_thread(&mut self) {
+        self.allocation.push(vec![0; self.available.len()]);
+        self.need.push(vec![0; self.available.len()]);
+    }
+
+    /// get available
+    pub fn get_available(&self, id: usize) -> u32 {
+        unsafe { *self.available.get_unchecked(id) }
+    }
+
+    /// get available mut
+    pub fn get_available_mut(&mut self, id: usize) -> &mut u32 {
+        unsafe { self.available.get_unchecked_mut(id) }
+    }
+
+    /// get allocation
+    pub fn get_allocation(&self, tid: usize, id: usize) -> u32 {
+        unsafe { *self.allocation.get_unchecked(tid).get_unchecked(id) }
+    }
+
+    /// get allocation mut
+    pub fn get_allocation_mut(&mut self, tid: usize, id: usize) -> &mut u32 {
+        unsafe { self.allocation.get_unchecked_mut(tid).get_unchecked_mut(id) }
+    }
+
+    /// get need
+    pub fn get_need(&self, tid: usize, id: usize) -> u32 {
+        unsafe { *self.need.get_unchecked(tid).get_unchecked(id) }
+    }
+
+    /// get need mut
+    pub fn get_need_mut(&mut self, tid: usize, id: usize) -> &mut u32 {
+        unsafe { self.need.get_unchecked_mut(tid).get_unchecked_mut(id) }
+    }
+
+    /// push avail. sem create / mutex create
+    pub fn push(&mut self, value: u32) {
+        self.available.push(value);
+        self.allocation.iter_mut().for_each(|v| v.push(0));
+        self.need.iter_mut().for_each(|v| v.push(0));
+    }
+
+    /// check. add need and allocation
+    pub fn check(&self, id: usize) -> Result<(), ()> {
+        let mut work = self.available.clone();
+        let mut finish = vec![false; self.allocation.len()];
+
+        let mut cnt = 0;
+        for _ in 0..finish.len() {
+            for (tid, value) in finish
+                .iter_mut()
+                .enumerate()
+                .filter(|(_, value)| **value == false)
+            {
+                if self.get_need(tid, id) <= *unsafe { work.get_unchecked(id) } {
+                    *value = true;
+                    unsafe {
+                        *work.get_unchecked_mut(id) += self.get_allocation(tid, id);
+                    }
+                    cnt += 1;
+                    break;
+                }
+            }
+        }
+        if cnt == finish.len() {
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
 }
 
 impl ProcessControlBlockInner {
@@ -119,6 +219,9 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    dead_checker: false,
+                    semaphore_checker: DeadlockChecker::new(),
+                    mutex_checker: DeadlockChecker::new(),
                 })
             },
         });
@@ -245,6 +348,9 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    dead_checker: parent.dead_checker,
+                    semaphore_checker: parent.semaphore_checker.clone(),
+                    mutex_checker: parent.mutex_checker.clone(),
                 })
             },
         });

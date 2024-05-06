@@ -5,6 +5,7 @@ use crate::{
 };
 use alloc::sync::Arc;
 /// thread create syscall
+/// TODO
 pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
     trace!(
         "kernel:pid[{}] tid[{}] sys_thread_create",
@@ -19,6 +20,13 @@ pub fn sys_thread_create(entry: usize, arg: usize) -> isize {
     );
     let task = current_task().unwrap();
     let process = task.process.upgrade().unwrap();
+
+    // add new thread
+    let mut process_inner = process.inner_exclusive_access();
+    process_inner.mutex_checker.add_thread();
+    process_inner.semaphore_checker.add_thread();
+    drop(process_inner);
+
     // create a new thread
     let new_task = Arc::new(TaskControlBlock::new(
         Arc::clone(&process),
