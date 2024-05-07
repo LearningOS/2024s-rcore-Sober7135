@@ -70,7 +70,7 @@ pub fn sys_mutex_lock(mutex_id: usize) -> isize {
 
     *checker.get_need_mut(tid, mutex_id) += 1;
 
-    if enabled && checker.check(mutex_id).is_err() {
+    if enabled && checker.check().is_err() {
         return -0xDEAD;
     }
     let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
@@ -154,6 +154,18 @@ pub fn sys_semaphore_up(sem_id: usize) -> isize {
     let process = current_process();
     let process_inner = process.inner_exclusive_access();
     let sem = Arc::clone(process_inner.semaphore_list[sem_id].as_ref().unwrap());
+
+    let checker = &process_inner.semaphore_checker;
+    info!(
+        "before up [{}] {}:{} \navail={:?}, \nallocation={:?}, \nneed={:?}, ",
+        tid,
+        file!(),
+        line!(),
+        checker.available,
+        checker.allocation,
+        checker.need
+    );
+
     drop(process_inner);
     sem.up();
 
@@ -163,6 +175,16 @@ pub fn sys_semaphore_up(sem_id: usize) -> isize {
 
     *checker.get_available_mut(sem_id) += 1;
     *checker.get_allocation_mut(tid, sem_id) -= 1;
+
+    debug!(
+        "after up [{}] {}:{} \navail={:?}, \nallocation={:?}, \nneed={:?}, ",
+        tid,
+        file!(),
+        line!(),
+        checker.available,
+        checker.allocation,
+        checker.need
+    );
 
     0
 }
@@ -182,8 +204,18 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
     // need
     *checker.get_need_mut(tid, sem_id) += 1;
 
+    info!(
+        "before down [{}] {}:{} \navail={:?}, \nallocation={:?}, \nneed={:?}, ",
+        tid,
+        file!(),
+        line!(),
+        checker.available,
+        checker.allocation,
+        checker.need
+    );
+
     // check
-    if enabled && checker.check(sem_id).is_err() {
+    if enabled && checker.check().is_err() {
         return -0xDEAD;
     }
 
@@ -197,6 +229,16 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
     *checker.get_available_mut(sem_id) -= 1;
     *checker.get_need_mut(tid, sem_id) -= 1;
     *checker.get_allocation_mut(tid, sem_id) += 1;
+
+    debug!(
+        "after down [{}] {}:{} \navail={:?}, \nallocation={:?}, \nneed={:?}, ",
+        tid,
+        file!(),
+        line!(),
+        checker.available,
+        checker.allocation,
+        checker.need
+    );
 
     0
 }

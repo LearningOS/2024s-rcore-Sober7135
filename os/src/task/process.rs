@@ -122,30 +122,47 @@ impl DeadlockChecker {
     }
 
     /// check. add need and allocation
-    pub fn check(&self, id: usize) -> Result<(), ()> {
+    pub fn check(&self) -> Result<(), ()> {
         let mut work = self.available.clone();
         let mut finish = vec![false; self.allocation.len()];
 
         let mut cnt = 0;
+
         for _ in 0..finish.len() {
             for (tid, value) in finish
                 .iter_mut()
                 .enumerate()
                 .filter(|(_, value)| **value == false)
             {
-                if self.get_need(tid, id) <= *unsafe { work.get_unchecked(id) } {
-                    *value = true;
-                    unsafe {
-                        *work.get_unchecked_mut(id) += self.get_allocation(tid, id);
+                let mut passed = true;
+                // check if thread[tid] need[j] < work[j]
+                for (need, res) in unsafe { self.need.get_unchecked(tid).iter().zip(work.iter()) } {
+                    if need > res {
+                        passed = false;
+                        break;
                     }
-                    cnt += 1;
-                    break;
                 }
+
+                if passed {
+                    cnt += 1;
+                    *value = true;
+                    for (alloc, work) in unsafe {
+                        self.allocation
+                            .get_unchecked(tid)
+                            .iter()
+                            .zip(work.iter_mut())
+                    } {
+                        *work += alloc;
+                    }
+                }
+                // check next thread
             }
         }
         if cnt == finish.len() {
+            info!("{}:{} check passed", file!(), line!());
             Ok(())
         } else {
+            error!("{}:{} check deadlock detected", file!(), line!());
             Err(())
         }
     }
