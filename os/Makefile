@@ -68,9 +68,9 @@ disasm-vim: kernel
 	@vim $(DISASM_TMP)
 	@rm $(DISASM_TMP)
 
-run: build run-inner
+run: run-inner
 
-run-inner:
+run-inner: build
 	@qemu-system-riscv64 \
 		-M 128m \
 		-machine virt \
